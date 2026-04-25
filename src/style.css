@@ -19,6 +19,56 @@
 	font-size: 0.92rem;
 }
 
+.formulario-reserva {
+	display: grid;
+	gap: 0.55rem;
+	padding: 0.7rem;
+	border: 1px solid #cbd5e1;
+	border-radius: 0.65rem;
+	background: #f8fafc;
+}
+
+.label-nombre {
+	color: #334155;
+	font-size: 0.82rem;
+	font-weight: 700;
+}
+
+.fila-formulario-reserva {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	gap: 0.5rem;
+}
+
+.input-nombre {
+	border: 1px solid #cbd5e1;
+	border-radius: 0.55rem;
+	padding: 0.52rem 0.6rem;
+	color: #0f172a;
+	background: #ffffff;
+	font-size: 0.83rem;
+	font-weight: 600;
+}
+
+.input-nombre:focus {
+	outline: 2px solid #93c5fd;
+	outline-offset: 1px;
+}
+
+.estado-nombre {
+	margin: 0;
+	font-size: 0.8rem;
+	font-weight: 700;
+}
+
+.estado-nombre--pendiente {
+	color: #9a3412;
+}
+
+.estado-nombre--ok {
+	color: #166534;
+}
+
 .leyenda {
 	display: flex;
 	flex-wrap: wrap;

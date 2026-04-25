@@ -1,13 +1,7 @@
 type EstadoAsiento = 0 | 1;
 type Sala = EstadoAsiento[][];
-type PosicionAsiento = {
-  fila: number;
-  columna: number;
-};
+type PosicionAsiento = [number, number];
 type TipoMensaje = "info" | "error" | "success";
-type ResultadoParContiguo =
-  | { encontrado: true; asientos: [PosicionAsiento, PosicionAsiento] }
-  | { encontrado: false; mensaje: string };
 type ParContiguo = [PosicionAsiento, PosicionAsiento];
 
 const FILAS = 8;
@@ -71,36 +65,29 @@ function contarDisponibles(sala: Sala): number {
 
 function contarOcupadosYDisponibles(
   sala: Sala
-): { ocupados: number; disponibles: number } {
+): [number, number] {
   const disponibles = contarDisponibles(sala);
   const totalAsientos = sala.length * sala[0].length;
   const ocupados = totalAsientos - disponibles;
 
-  return { ocupados, disponibles };
+  return [ocupados, disponibles];
 }
 
 function encontrarPrimerParContiguoDisponible(
   sala: Sala
-): ResultadoParContiguo {
+): ParContiguo | null {
   for (let fila = 0; fila < sala.length; fila++) {
     for (let columna = 0; columna < sala[fila].length - 1; columna++) {
       if (sala[fila][columna] === LIBRE && sala[fila][columna + 1] === LIBRE) {
-        return {
-          encontrado: true,
-          asientos: [
-            { fila: fila + 1, columna: columna + 1 },
-            { fila: fila + 1, columna: columna + 2 },
-          ],
-        };
+        return [
+          [fila, columna],
+          [fila, columna + 1],
+        ];
       }
     }
   }
 
-  return {
-    encontrado: false,
-    mensaje:
-      "No hay dos asientos contiguos disponibles en la misma fila.",
-  };
+  return null;
 }
 
 function encontrarPrimerosDosParesContiguosDisponibles(sala: Sala): ParContiguo[] {
@@ -110,8 +97,8 @@ function encontrarPrimerosDosParesContiguosDisponibles(sala: Sala): ParContiguo[
     for (let columna = 0; columna < sala[fila].length - 1; columna++) {
       if (sala[fila][columna] === LIBRE && sala[fila][columna + 1] === LIBRE) {
         pares.push([
-          { fila, columna },
-          { fila, columna: columna + 1 },
+          [fila, columna],
+          [fila, columna + 1],
         ]);
 
         if (pares.length === 2) {
@@ -152,12 +139,9 @@ function claveAsiento(fila: number, columna: number): string {
   return `${fila}-${columna}`;
 }
 
-function parsearClaveAsiento(clave: string): { fila: number; columna: number } {
+function parsearClaveAsiento(clave: string): [number, number] {
   const [filaStr, columnaStr] = clave.split("-");
-  return {
-    fila: Number(filaStr),
-    columna: Number(columnaStr),
-  };
+  return [Number(filaStr), Number(columnaStr)];
 }
 
 function formatearPosicion(fila: number, columna: number): string {
@@ -165,17 +149,17 @@ function formatearPosicion(fila: number, columna: number): string {
 }
 
 function construirResumenTexto(sala: Sala): string {
-  const conteoAsientos = contarOcupadosYDisponibles(sala);
+  const [ocupados, disponibles] = contarOcupadosYDisponibles(sala);
   const parContiguo = encontrarPrimerParContiguoDisponible(sala);
-  const mensajeParContiguo = parContiguo.encontrado
-    ? `Primer par contiguo disponible: Fila ${parContiguo.asientos[0].fila}, Asientos ${parContiguo.asientos[0].columna} y ${parContiguo.asientos[1].columna}`
-    : parContiguo.mensaje;
+  const mensajeParContiguo = parContiguo
+    ? `Primer par contiguo disponible: Fila ${parContiguo[0][0] + 1}, Asientos ${parContiguo[0][1] + 1} y ${parContiguo[1][1] + 1}`
+    : "No hay dos asientos contiguos disponibles en la misma fila.";
 
   return [
     "Estado actual de la sala:",
     mostrarSala(sala),
-    `Asientos ocupados: ${conteoAsientos.ocupados}`,
-    `Asientos disponibles: ${conteoAsientos.disponibles}`,
+    `Asientos ocupados: ${ocupados}`,
+    `Asientos disponibles: ${disponibles}`,
     mensajeParContiguo,
   ].join("\n\n");
 }
@@ -198,7 +182,16 @@ if (typeof document !== "undefined") {
       app.innerHTML = `
         <section class="cinema-ui">
           <h2 class="cinema-title">Mapa de la sala</h2>
-          <p class="cinema-subtitle">Haz clic en asientos libres para seleccionarlos. Luego pulsa en "Reservar seleccionados".</p>
+          <p class="cinema-subtitle">Primero completa tu nombre. Luego selecciona asientos y confirma la reserva.</p>
+
+          <section class="formulario-reserva" aria-label="Formulario de nombre para reservar">
+            <label for="input-nombre" class="label-nombre">Nombre de la persona que reserva</label>
+            <div class="fila-formulario-reserva">
+              <input id="input-nombre" type="text" class="input-nombre" placeholder="Ejemplo: Ana Perez" autocomplete="name" />
+              <button id="btn-guardar-nombre" type="button" class="btn-reservar btn-reservar--secundario">Continuar</button>
+            </div>
+            <p id="estado-nombre" class="estado-nombre estado-nombre--pendiente">Antes de reservar, completa tu nombre.</p>
+          </section>
 
           <div class="leyenda">
             <span class="leyenda-item"><span class="punto punto--libre"></span> L libre (reservable)</span>
@@ -229,6 +222,9 @@ if (typeof document !== "undefined") {
       const btnReservarContiguos = document.querySelector<HTMLButtonElement>("#btn-reservar-contiguos");
       const mensajeReserva = document.querySelector<HTMLParagraphElement>("#mensaje-reserva");
       const resumenSala = document.querySelector<HTMLParagraphElement>("#resumen-sala");
+      const inputNombre = document.querySelector<HTMLInputElement>("#input-nombre");
+      const btnGuardarNombre = document.querySelector<HTMLButtonElement>("#btn-guardar-nombre");
+      const estadoNombre = document.querySelector<HTMLParagraphElement>("#estado-nombre");
 
       if (
         !mapaSala ||
@@ -236,21 +232,64 @@ if (typeof document !== "undefined") {
         !selectorContiguos ||
         !btnReservarContiguos ||
         !mensajeReserva ||
-        !resumenSala
+        !resumenSala ||
+        !inputNombre ||
+        !btnGuardarNombre ||
+        !estadoNombre
       ) {
         return;
       }
 
       const seleccionados = new Set<string>();
+      const historialReservasJSON: string[] = [];
+      let nombreReserva = "";
 
       const mostrarMensaje = (texto: string, tipo: TipoMensaje = "info"): void => {
         mensajeReserva.textContent = texto;
         mensajeReserva.className = `mensaje mensaje--${tipo}`;
       };
 
+      const tieneNombreReserva = (): boolean => nombreReserva.trim().length > 0;
+
+      const actualizarEstadoNombre = (): void => {
+        if (tieneNombreReserva()) {
+          estadoNombre.textContent = `Reservando a nombre de ${nombreReserva}.`;
+          estadoNombre.className = "estado-nombre estado-nombre--ok";
+        } else {
+          estadoNombre.textContent = "Antes de reservar, completa tu nombre.";
+          estadoNombre.className = "estado-nombre estado-nombre--pendiente";
+        }
+
+        btnReservar.disabled = !tieneNombreReserva();
+      };
+
+      const solicitarNombreSiFalta = (): boolean => {
+        if (tieneNombreReserva()) {
+          return true;
+        }
+
+        mostrarMensaje(
+          "Para reservar asientos primero debes completar el formulario con tu nombre.",
+          "error"
+        );
+        inputNombre.focus();
+        return false;
+      };
+
       const actualizarResumen = (): void => {
-        const conteo = contarOcupadosYDisponibles(sala);
-        resumenSala.textContent = `Ocupados: ${conteo.ocupados} | Disponibles: ${conteo.disponibles} | Seleccionados: ${seleccionados.size}`;
+        const [ocupados, disponibles] = contarOcupadosYDisponibles(sala);
+        resumenSala.textContent = `Ocupados: ${ocupados} | Disponibles: ${disponibles} | Seleccionados: ${seleccionados.size}`;
+      };
+
+      const crearMetadataReservaJSON = (
+        nombre: string,
+        asientos: string[]
+      ): string => {
+        return JSON.stringify([
+          ["nombre", nombre],
+          ["asientos", asientos],
+          ["marcaTiempo", new Date().toISOString()],
+        ]);
       };
 
       const actualizarOpcionesContiguas = (): void => {
@@ -271,13 +310,13 @@ if (typeof document !== "undefined") {
           const opcion = document.createElement("option");
           const a = par[0];
           const b = par[1];
-          opcion.value = `${a.fila}-${a.columna}|${b.fila}-${b.columna}`;
-          opcion.textContent = `Opción ${index + 1}: Fila ${a.fila + 1}, Asientos ${a.columna + 1} y ${b.columna + 1}`;
+          opcion.value = `${a[0]}-${a[1]}|${b[0]}-${b[1]}`;
+          opcion.textContent = `Opción ${index + 1}: Fila ${a[0] + 1}, Asientos ${a[1] + 1} y ${b[1] + 1}`;
           selectorContiguos.appendChild(opcion);
         });
 
         selectorContiguos.disabled = false;
-        btnReservarContiguos.disabled = false;
+        btnReservarContiguos.disabled = !tieneNombreReserva();
       };
 
       const pintarMapa = (): void => {
@@ -349,6 +388,10 @@ if (typeof document !== "undefined") {
       };
 
       btnReservar.addEventListener("click", () => {
+        if (!solicitarNombreSiFalta()) {
+          return;
+        }
+
         if (seleccionados.size === 0) {
           mostrarMensaje("No has seleccionado asientos para reservar.", "error");
           return;
@@ -358,7 +401,7 @@ if (typeof document !== "undefined") {
         const noDisponibles: string[] = [];
 
         for (const clave of seleccionados) {
-          const { fila, columna } = parsearClaveAsiento(clave);
+          const [fila, columna] = parsearClaveAsiento(clave);
           if (reservarAsiento(sala, fila, columna)) {
             reservadosAhora.push(formatearPosicion(fila, columna));
           } else {
@@ -369,7 +412,10 @@ if (typeof document !== "undefined") {
         seleccionados.clear();
 
         if (reservadosAhora.length > 0) {
-          let mensaje = `Asientos reservados correctamente: ${reservadosAhora.join(", ")}.`;
+          historialReservasJSON.push(
+            crearMetadataReservaJSON(nombreReserva, reservadosAhora)
+          );
+          let mensaje = `Asientos reservados correctamente a nombre de ${nombreReserva}: ${reservadosAhora.join(", ")}.`;
           if (noDisponibles.length > 0) {
             mensaje += ` No se pudieron reservar: ${noDisponibles.join(", ")} (ya ocupados).`;
           }
@@ -387,6 +433,10 @@ if (typeof document !== "undefined") {
       });
 
       btnReservarContiguos.addEventListener("click", () => {
+        if (!solicitarNombreSiFalta()) {
+          return;
+        }
+
         if (selectorContiguos.disabled || !selectorContiguos.value) {
           mostrarMensaje(
             "No hay asientos contiguos disponibles en este momento.",
@@ -395,9 +445,9 @@ if (typeof document !== "undefined") {
           return;
         }
 
-        const [asientoA, asientoB] = selectorContiguos.value.split("|");
-        const { fila: filaA, columna: columnaA } = parsearClaveAsiento(asientoA);
-        const { fila: filaB, columna: columnaB } = parsearClaveAsiento(asientoB);
+          const [asientoA, asientoB] = selectorContiguos.value.split("|");
+          const [filaA, columnaA] = parsearClaveAsiento(asientoA);
+          const [filaB, columnaB] = parsearClaveAsiento(asientoB);
 
         const reservaA = reservarAsiento(sala, filaA, columnaA);
         const reservaB = reservarAsiento(sala, filaB, columnaB);
@@ -406,8 +456,14 @@ if (typeof document !== "undefined") {
         seleccionados.delete(claveAsiento(filaB, columnaB));
 
         if (reservaA && reservaB) {
+          historialReservasJSON.push(
+            crearMetadataReservaJSON(nombreReserva, [
+              formatearPosicion(filaA, columnaA),
+              formatearPosicion(filaB, columnaB),
+            ])
+          );
           mostrarMensaje(
-            `Asientos contiguos reservados correctamente: ${formatearPosicion(filaA, columnaA)} y ${formatearPosicion(filaB, columnaB)}.`,
+            `Asientos contiguos reservados correctamente a nombre de ${nombreReserva}: ${formatearPosicion(filaA, columnaA)} y ${formatearPosicion(filaB, columnaB)}.`,
             "success"
           );
         } else {
@@ -422,8 +478,34 @@ if (typeof document !== "undefined") {
         actualizarOpcionesContiguas();
       });
 
+      btnGuardarNombre.addEventListener("click", () => {
+        const nombreIngresado = inputNombre.value.trim().replace(/\s+/g, " ");
+
+        if (!nombreIngresado) {
+          nombreReserva = "";
+          actualizarEstadoNombre();
+          mostrarMensaje("Debes escribir un nombre para poder reservar asientos.", "error");
+          inputNombre.focus();
+          return;
+        }
+
+        nombreReserva = nombreIngresado;
+        inputNombre.value = nombreReserva;
+        actualizarEstadoNombre();
+        actualizarOpcionesContiguas();
+        mostrarMensaje(`Perfecto, la reserva se hara a nombre de ${nombreReserva}.`, "success");
+      });
+
+      inputNombre.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          btnGuardarNombre.click();
+        }
+      });
+
       pintarMapa();
       actualizarResumen();
+      actualizarEstadoNombre();
       actualizarOpcionesContiguas();
     }
   });
